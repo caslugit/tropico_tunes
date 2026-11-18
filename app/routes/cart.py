@@ -53,10 +53,24 @@ def add():
 def update(item_id):
     item = CartItem.query.join(Cart).filter(CartItem.id == item_id, Cart.user_id == current_user.id, Cart.active.is_(True)).first_or_404()
     quantity = request.form.get("quantity", 1, type=int)
+    variant_id = request.form.get("variant_id", item.variant_id, type=int)
+    variant = db.session.get(ProductVariant, variant_id)
+    if not variant or variant.product_id != item.variant.product_id:
+        flash("Variação inválida para este produto.", "error")
+        return redirect(url_for("cart.view_cart"))
     if quantity <= 0:
         db.session.delete(item)
-    elif quantity <= item.variant.stock:
-        item.quantity = quantity
+    elif quantity <= variant.stock:
+        duplicate = CartItem.query.filter(CartItem.cart_id == item.cart_id, CartItem.variant_id == variant.id, CartItem.id != item.id).first()
+        if duplicate:
+            if duplicate.quantity + quantity > variant.stock:
+                flash("Não há estoque suficiente para juntar essas escolhas.", "error")
+                return redirect(url_for("cart.view_cart"))
+            duplicate.quantity += quantity
+            db.session.delete(item)
+        else:
+            item.variant_id = variant.id
+            item.quantity = quantity
     else:
         flash("Quantidade maior que o estoque disponível.", "error")
         return redirect(url_for("cart.view_cart"))

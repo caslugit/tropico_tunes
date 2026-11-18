@@ -1,4 +1,51 @@
-{% extends 'base.html' %}{% from 'macros.html' import csrf, product_card %}{% block title %}{{ product.name }} — TRÓPICO{% endblock %}
-{% block content %}<section class="product-detail"><div class="gallery">{% for image in product.images %}<img src="{{ image.url }}" alt="{{ image.alt_text or product.name }}">{% endfor %}</div><div class="product-info"><span>{{ product.category.name|upper }}</span><h1>{{ product.name }}</h1><strong class="price">R$ {{ '%.2f'|format(product.price)|replace('.', ',') }}</strong><p>{{ product.description }}</p>{% if product.stock > 0 %}<form method="post" action="{{ url_for('cart.add') }}" data-variant-form>{{ csrf() }}<label>Tamanho e cor</label><div class="variant-list">{% for variant in product.variants %}<label class="variant {% if variant.stock == 0 %}soldout{% endif %}"><input type="radio" name="variant_id" value="{{ variant.id }}" {% if loop.first and variant.stock > 0 %}checked{% endif %} {% if variant.stock == 0 %}disabled{% endif %}><span><i style="--swatch:{{ variant.color.hex_code }}"></i>{{ variant.size.name }} · {{ variant.color.name }} <small>{{ variant.stock }} un.</small></span></label>{% endfor %}</div><label for="quantity">Quantidade</label><input class="qty" id="quantity" name="quantity" type="number" min="1" value="1"><button class="btn wide">Adicionar à sacola</button></form>{% else %}<div class="unavailable">Produto indisponível</div>{% endif %}<div class="product-notes"><span>✦ Frete grátis acima de R$ 399</span><span>↺ Primeira troca grátis</span><span>◌ Pagamento 100% seguro (simulado)</span></div></div></section>
-<section class="section"><div class="section-heading"><div><span>COMBINA COM</span><h2>Você também pode gostar</h2></div></div><div class="product-grid">{% for item in related %}{{ product_card(item) }}{% endfor %}</div></section>{% endblock %}
-
+{% extends 'base.html' %}
+{% from 'macros.html' import csrf, product_card %}
+{% block title %}{{ product.name }} — TRÓPICO{% endblock %}
+{% block content %}
+<section class="product-detail">
+  <div class="gallery">
+    {% for image in product.images %}<img src="{{ image.url }}" alt="{{ image.alt_text or product.name }}" data-product-image>{% endfor %}
+  </div>
+  <div class="product-info">
+    <span>{{ product.category.name|upper }}</span>
+    <h1>{{ product.name }}</h1>
+    {% if product.reviews %}<div class="product-rating"><b>★ {{ '%.1f'|format((product.reviews|sum(attribute='rating')) / (product.reviews|length))|replace('.', ',') }}</b><a href="#avaliacoes">{{ product.reviews|length }} avaliações</a></div>{% endif %}
+    <strong class="price">R$ {{ '%.2f'|format(product.price)|replace('.', ',') }}</strong>
+    <p>{{ product.description }}</p>
+    {% if product.stock > 0 %}
+    <form method="post" action="{{ url_for('cart.add') }}" data-variant-configurator class="product-configurator">
+      {{ csrf() }}
+      <input type="hidden" name="variant_id" data-variant-id>
+      <div hidden>{% for variant in product.variants %}<span data-variant-option data-id="{{ variant.id }}" data-color="{{ variant.color.id }}" data-size="{{ variant.size.id }}" data-stock="{{ variant.stock }}"></span>{% endfor %}</div>
+      {% set color_state = namespace(ids=[], count=0) %}
+      {% if product.slug == 'camiseta-sol-nascente' %}
+      <fieldset>
+        <legend>Cor: <b data-color-name></b></legend>
+        <div class="color-options">
+          {% for variant in product.variants %}{% if variant.color.name in ['Preto', 'Off-white'] and variant.color.id not in color_state.ids %}{% set _ = color_state.ids.append(variant.color.id) %}
+          <label class="color-option"><input type="radio" name="color_choice" value="{{ variant.color.id }}" data-label="{{ variant.color.name }}" {% if product.slug == 'camiseta-sol-nascente' %}data-image="{{ url_for('static', filename='images/products/camiseta-mata-atlantica.jpeg' if variant.color.name == 'Off-white' else 'images/products/camiseta-sol-nascente.jpeg') }}"{% endif %} {% if color_state.count == 0 %}checked{% endif %}><span style="--swatch:{{ variant.color.hex_code }}"><i></i><small>{{ variant.color.name }}</small></span></label>
+          {% set color_state.count = color_state.count + 1 %}{% endif %}{% endfor %}
+        </div>
+      </fieldset>
+      {% else %}{% set only_color = product.variants[0].color %}<input type="radio" name="color_choice" value="{{ only_color.id }}" data-label="{{ only_color.name }}" checked hidden><p class="single-option">Cor: <b data-color-name>{{ only_color.name }}</b></p>{% endif %}
+      {% set size_state = namespace(ids=[], count=0) %}
+      <fieldset>
+        <legend><span>Tamanho: <b data-size-name></b></span><button type="button" class="size-guide-link" data-size-guide>Guia de tamanhos</button></legend>
+        <div class="size-options">
+          {% for variant in product.variants|sort(attribute='size.sort_order') %}{% if variant.size.id not in size_state.ids %}{% set _ = size_state.ids.append(variant.size.id) %}
+          <label class="size-option"><input type="radio" name="size_choice" value="{{ variant.size.id }}" data-label="{{ variant.size.name }}" {% if size_state.count == 0 %}checked{% endif %}><span>{{ variant.size.name }}</span></label>
+          {% set size_state.count = size_state.count + 1 %}{% endif %}{% endfor %}
+        </div>
+      </fieldset>
+      <p class="stock-status" data-stock-status></p>
+      <div class="selection-summary"><span>Sua escolha</span><b data-selection-summary></b></div>
+      <div class="qty-row"><label for="quantity">Quantidade<input class="qty" id="quantity" name="quantity" type="number" min="1" value="1"></label><button class="btn" type="submit">Adicionar à sacola →</button></div>
+    </form>
+    {% else %}<div class="unavailable">Produto indisponível</div>{% endif %}
+    <dialog class="size-guide" data-size-dialog><button type="button" class="size-guide-close" data-size-close aria-label="Fechar">×</button><span>GUIA DE TAMANHOS</span><h2>Encontre seu tamanho</h2><p>Compare as medidas da peça com uma roupa que veste bem em você.</p><div class="size-table"><b>Tamanho</b><b>Tórax</b><b>Comprimento</b><span>P</span><span>96 cm</span><span>68 cm</span><span>M</span><span>102 cm</span><span>71 cm</span><span>G</span><span>108 cm</span><span>74 cm</span><span>GG</span><span>116 cm</span><span>77 cm</span></div></dialog>
+    <div class="product-notes"><span>✦ Frete grátis acima de R$ 399</span><span>↺ Primeira troca grátis</span><span>◌ Pagamento 100% seguro (simulado)</span></div>
+  </div>
+</section>
+{% if product.reviews %}<section class="reviews-section" id="avaliacoes"><div><span>AVALIAÇÕES DE QUEM COMPROU</span><h2>Caimento e experiência</h2></div><div class="review-list">{% for review in product.reviews[:3] %}<article><b>{{ '★' * review.rating }}</b><p>{{ review.comment }}</p><small>{{ review.author.name }}</small></article>{% endfor %}</div></section>{% endif %}
+<section class="section"><div class="section-heading"><div><span>COMBINA COM</span><h2>Você também pode gostar</h2></div></div><div class="product-grid">{% for item in related %}{{ product_card(item) }}{% endfor %}</div></section>
+{% endblock %}
